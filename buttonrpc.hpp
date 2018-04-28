@@ -87,12 +87,14 @@ private:
 
 	// PROXY CLASS MEMBER
 	template<typename R, typename C, typename S>
-	void callproxy_(R(C::*)(), S* s, Serializer* pr, const char* data, int len) {
-		
+	void callproxy_(R(C::* func)(), S* s, Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R()>(std::bind(func, s)), pr, data, len);
 	}
 
 	template<typename R, typename C, typename S, typename P1>
-	void callproxy_(R(C::*)(P1), S* s, Serializer* pr, const char* data, int len);
+	void callproxy_(R(C::* func)(P1), S* s, Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R(P1)>(std::bind(func, s, std::placeholders::_1)), pr, data, len);
+	}
 
 	template<typename R, typename C, typename S, typename P1, typename P2>
 	void callproxy_(R(C::* func)(P1, P2), S* s, Serializer* pr, const char* data, int len) {
@@ -100,7 +102,9 @@ private:
 	}
 
 	template<typename R, typename C, typename S, typename P1, typename P2, typename P3>
-	void callproxy_(R(C::*)(P1, P2, P3), S* s, Serializer* pr, const char* data, int len);
+	void callproxy_(R(C::* func)(P1, P2, P3), S* s, Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R(P1, P2, P3)>(std::bind(func, s, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)), pr, data, len);
+	}
 
 	// PORXY FUNCTIONAL
 	template<typename R>

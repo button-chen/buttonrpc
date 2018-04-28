@@ -154,6 +154,7 @@ inline void Serializer::output_type(std::string& in)
 	m_iodevice.offset(4);
 	delete [] d;
 	in.insert(in.begin(), m_iodevice.current(), m_iodevice.current() + len);
+	m_iodevice.offset(len);
 }
 
 template<typename T>
