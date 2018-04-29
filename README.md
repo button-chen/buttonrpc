@@ -39,7 +39,7 @@ int main()
 {
 	buttonrpc client;
 	client.as_client("127.0.0.1", 5555);
-	int a = client.call<int>("foo", 2, 3);
+	int a = client.call<int>("foo", 2, 3).val();
 	std::cout << "call foo result: " << a << std::endl;
 	system("pause");
 	return 0;
@@ -58,5 +58,6 @@ vs2010 or late
 
 ## Usage
 
-See also example/
+1： 更多例子在目录 example/ 下
+2： 目前被绑定的函数或者函数对象不支持返回值为 void 
 
