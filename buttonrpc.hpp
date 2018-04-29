@@ -21,6 +21,40 @@ public:
 		RPC_CLIENT,
 		RPC_SERVER
 	};
+	// return value
+	template<typename T>
+	class value_t {
+	public:
+		typedef T type;
+		typedef std::string msg_type;
+		typedef int code_type;
+
+		value_t() { code_ = 0; msg_.clear(); }
+		bool valid() { return (code_ == 0 ? true : false); }
+		int error_code() { return code_; }
+		std::string error_msg() { return msg_; }
+		type val() { return val_; }
+		void set_val(type& val) { val_ = val; }
+		void set_code(code_type code) { code_ = code; }
+		void set_msg(msg_type msg) { msg_ = msg; }
+
+		friend Serializer& operator >> (Serializer& in, value_t<T>& d) {
+			in >> d.code_ >> d.msg_;
+			if (d.code_ == 0) {
+				in >> d.val_;
+			}
+			return in;
+		}
+		friend Serializer& operator << (Serializer& out, value_t<T> d) {
+			out << d.code_ << d.msg_ << d.val_;
+			return out;
+		}
+	private:
+		code_type code_;
+		msg_type msg_;
+		type val_;
+	};
+
 	buttonrpc();
 	~buttonrpc();
 
@@ -41,28 +75,28 @@ public:
 
 	// client
 	template<typename R>
-	R call(std::string name);
+	value_t<R> call(std::string name);
 
 	template<typename R, typename P1>
-	R call(std::string name, P1);
+	value_t<R> call(std::string name, P1);
 
 	template<typename R, typename P1, typename P2>
-	R call(std::string name, P1, P2);
+	value_t<R> call(std::string name, P1, P2);
 
 	template<typename R, typename P1, typename P2, typename P3>
-	R call(std::string name, P1, P2, P3);
+	value_t<R> call(std::string name, P1, P2, P3);
 
 	template<typename R, typename P1, typename P2, typename P3, typename P4>
-	R call(std::string name, P1, P2, P3, P4);
+	value_t<R> call(std::string name, P1, P2, P3, P4);
 
 	template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
-	R call(std::string name, P1, P2, P3, P4, P5);
+	value_t<R> call(std::string name, P1, P2, P3, P4, P5);
 
 private:
 	Serializer* call_(std::string name, const char* data, int len);
 
 	template<typename R>
-	R net_call(Serializer& ds);
+	value_t<R> net_call(Serializer& ds);
 
 	template<typename F>
 	void callproxy(F fun, Serializer* pr, const char* data, int len);
@@ -223,8 +257,13 @@ void buttonrpc::run()
 
 Serializer* buttonrpc::call_(std::string name, const char* data, int len)
 {
-	auto fun = m_handlers[name];
 	Serializer* ds = new Serializer();
+	if (m_handlers.find(name) == m_handlers.end()) {
+		(*ds) << value_t<int>::code_type(1);
+		(*ds) << value_t<int>::msg_type("function not bind: " + name);
+		return ds;
+	}
+	auto fun = m_handlers[name];
 	fun(ds, data, len);
 	ds->reset();
 	return ds;
@@ -257,9 +296,13 @@ inline void buttonrpc::callproxy(F fun, S * s, Serializer * pr, const char * dat
 template<typename R>
 void buttonrpc::callproxy_(std::function<R()> func, Serializer* pr, const char* data, int len)
 {
-	Serializer ds(StreamBuffer(data, len));
 	R r = func();
-	(*pr) << r;
+
+	value_t<R> val;
+	val.set_code(0);
+	val.set_msg("success");
+	val.set_val(r);
+	(*pr) << val;
 }
 
 template<typename R, typename P1>
@@ -269,7 +312,12 @@ void buttonrpc::callproxy_(std::function<R(P1)> func, Serializer* pr, const char
 	P1 p1;
 	ds >> p1;
 	R r = func(p1);
-	(*pr) << r;
+	
+	value_t<R> val;
+	val.set_code(0);
+	val.set_msg("success");
+	val.set_val(r);
+	(*pr) << val;
 }
 
 template<typename R, typename P1, typename P2>
@@ -279,7 +327,12 @@ void buttonrpc::callproxy_(std::function<R(P1, P2)> func, Serializer* pr, const 
 	P1 p1; P2 p2;
 	ds >> p1 >> p2;
 	R r = func(p1, p2);
-	(*pr) << r;
+	
+	value_t<R> val;
+	val.set_code(0);
+	val.set_msg("success");
+	val.set_val(r);
+	(*pr) << val;
 }
 
 template<typename R, typename P1, typename P2, typename P3>
@@ -289,7 +342,12 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3)> func, Serializer* pr, co
 	P1 p1; P2 p2; P3 p3;
 	ds >> p1 >> p2 >> p3;
 	R r = func(p1, p2, p3);
-	(*pr) << r;
+	
+	value_t<R> val;
+	val.set_code(0);
+	val.set_msg("success");
+	val.set_val(r);
+	(*pr) << val;
 }
 
 template<typename R, typename P1, typename P2, typename P3, typename P4>
@@ -299,7 +357,12 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4)> func, Serializer* pr
 	P1 p1; P2 p2; P3 p3; P4 p4;
 	ds >> p1 >> p2 >> p3 >> p4;
 	R r = func(p1, p2, p3, p4);
-	(*pr) << r;
+	
+	value_t<R> val;
+	val.set_code(0);
+	val.set_msg("success");
+	val.set_val(r);
+	(*pr) << val;
 }
 
 template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
@@ -309,11 +372,16 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4, P5)> func, Serializer
 	P1 p1; P2 p2; P3 p3; P4 p4; P5 p5;
 	ds >> p1 >> p2 >> p3 >> p4 >> p5;
 	R r = func(p1, p2, p3, p4, p5);
-	(*pr) << r;
+	
+	value_t<R> val;
+	val.set_code(0);
+	val.set_msg("success");
+	val.set_val(r);
+	(*pr) << val;
 }
 
 template<typename R>
-inline R buttonrpc::net_call(Serializer& ds)
+inline buttonrpc::value_t<R> buttonrpc::net_call(Serializer& ds)
 {
 	zmq::message_t request(ds.size() + 1);
 	memcpy(request.data(), ds.data(), ds.size());
@@ -324,13 +392,14 @@ inline R buttonrpc::net_call(Serializer& ds)
 	ds.clear();
 	ds.write_raw_data((char*)reply.data(), reply.size());
 	ds.reset();
-	R r;
-	ds >> r;
-	return r;
+
+	value_t<R> val;
+	ds >> val;
+	return val;
 }
 
 template<typename R>
-R buttonrpc::call(std::string name)
+inline buttonrpc::value_t<R> buttonrpc::call(std::string name)
 {
 	Serializer ds;
 	ds << name;
@@ -338,7 +407,7 @@ R buttonrpc::call(std::string name)
 }
 
 template<typename R, typename P1>
-R buttonrpc::call(std::string name, P1 p1)
+inline buttonrpc::value_t<R> buttonrpc::call(std::string name, P1 p1)
 {
 	Serializer ds;
 	ds << name << p1;
@@ -346,7 +415,7 @@ R buttonrpc::call(std::string name, P1 p1)
 }
 
 template<typename R, typename P1, typename P2>
-R buttonrpc::call( std::string name, P1 p1, P2 p2 )
+inline buttonrpc::value_t<R> buttonrpc::call( std::string name, P1 p1, P2 p2 )
 {
 	Serializer ds;
 	ds << name << p1 << p2;
@@ -354,7 +423,7 @@ R buttonrpc::call( std::string name, P1 p1, P2 p2 )
 }
 
 template<typename R, typename P1, typename P2, typename P3>
-R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3)
+inline buttonrpc::value_t<R> buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3)
 {
 	Serializer ds;
 	ds << name << p1 << p2 << p3;
@@ -362,7 +431,7 @@ R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3)
 }
 
 template<typename R, typename P1, typename P2, typename P3, typename P4>
-inline R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4)
+inline buttonrpc::value_t<R> buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4)
 {
 	Serializer ds;
 	ds << name << p1 << p2 << p3 << p4;
@@ -370,7 +439,7 @@ inline R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4)
 }
 
 template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
-inline R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5)
+inline buttonrpc::value_t<R> buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5)
 {
 	Serializer ds;
 	ds << name << p1 << p2 << p3 << p4 << p5;
