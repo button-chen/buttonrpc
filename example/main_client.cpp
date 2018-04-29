@@ -41,7 +41,12 @@ int main()
 
 		std::cout << "structtest: " << d.val().age << "-->" << d.val().name << "-->" << d.val().height << std::endl;
 
-		Sleep(500);
+		buttonrpc::value_t<void> xx = client.call<void>("funxx1", 9);
+		if (!xx.valid()) {
+			std::cout << xx.error_msg() << std::endl;
+		}
+
+		Sleep(1000);
 	}
 	system("pause");
 	return 0;

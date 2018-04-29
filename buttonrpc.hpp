@@ -14,6 +14,13 @@
 #include <zmq.hpp>
 #include "Serializer.hpp"
 
+
+template<typename T>
+struct type_xx{	typedef T type; };
+
+template<>
+struct type_xx<void>{ typedef int8_t type; };
+
 class buttonrpc
 {
 public:
@@ -25,16 +32,17 @@ public:
 	template<typename T>
 	class value_t {
 	public:
-		typedef T type;
+		typedef typename type_xx<T>::type type;
 		typedef std::string msg_type;
-		typedef int code_type;
+		typedef uint16_t code_type;
 
 		value_t() { code_ = 0; msg_.clear(); }
 		bool valid() { return (code_ == 0 ? true : false); }
 		int error_code() { return code_; }
 		std::string error_msg() { return msg_; }
 		type val() { return val_; }
-		void set_val(type& val) { val_ = val; }
+
+		void set_val(const type& val) { val_ = val; }
 		void set_code(code_type code) { code_ = code; }
 		void set_msg(msg_type msg) { msg_ = msg; }
 
@@ -293,14 +301,25 @@ inline void buttonrpc::callproxy(F fun, S * s, Serializer * pr, const char * dat
 	callproxy_(fun, s, pr, data, len);
 }
 
+// help call return value type is void function
+template<typename R, typename F>
+typename std::enable_if<std::is_same<R, void>::value, typename type_xx<R>::type >::type call_helper(F f) {
+	f();
+	return 0;
+}
+
+template<typename R, typename F>
+typename std::enable_if<!std::is_same<R, void>::value, typename type_xx<R>::type >::type call_helper(F f) {
+	return f();
+}
+
 template<typename R>
 void buttonrpc::callproxy_(std::function<R()> func, Serializer* pr, const char* data, int len)
 {
-	R r = func();
+	typename type_xx<R>::type r = call_helper<R>(std::bind(func));
 
 	value_t<R> val;
 	val.set_code(0);
-	val.set_msg("success");
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -311,11 +330,10 @@ void buttonrpc::callproxy_(std::function<R(P1)> func, Serializer* pr, const char
 	Serializer ds(StreamBuffer(data, len));
 	P1 p1;
 	ds >> p1;
-	R r = func(p1);
-	
+	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1));
+
 	value_t<R> val;
 	val.set_code(0);
-	val.set_msg("success");
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -326,11 +344,10 @@ void buttonrpc::callproxy_(std::function<R(P1, P2)> func, Serializer* pr, const 
 	Serializer ds(StreamBuffer(data, len));
 	P1 p1; P2 p2;
 	ds >> p1 >> p2;
-	R r = func(p1, p2);
+	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2));
 	
 	value_t<R> val;
 	val.set_code(0);
-	val.set_msg("success");
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -341,11 +358,9 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3)> func, Serializer* pr, co
 	Serializer ds(StreamBuffer(data, len));
 	P1 p1; P2 p2; P3 p3;
 	ds >> p1 >> p2 >> p3;
-	R r = func(p1, p2, p3);
-	
+	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2, p3));
 	value_t<R> val;
 	val.set_code(0);
-	val.set_msg("success");
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -356,11 +371,9 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4)> func, Serializer* pr
 	Serializer ds(StreamBuffer(data, len));
 	P1 p1; P2 p2; P3 p3; P4 p4;
 	ds >> p1 >> p2 >> p3 >> p4;
-	R r = func(p1, p2, p3, p4);
-	
+	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2, p3, p4));
 	value_t<R> val;
 	val.set_code(0);
-	val.set_msg("success");
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -371,11 +384,9 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4, P5)> func, Serializer
 	Serializer ds(StreamBuffer(data, len));
 	P1 p1; P2 p2; P3 p3; P4 p4; P5 p5;
 	ds >> p1 >> p2 >> p3 >> p4 >> p5;
-	R r = func(p1, p2, p3, p4, p5);
-	
+	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2, p3, p4, p5));
 	value_t<R> val;
 	val.set_code(0);
-	val.set_msg("success");
 	val.set_val(r);
 	(*pr) << val;
 }

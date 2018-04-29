@@ -136,12 +136,14 @@ inline void Serializer::output_type(T& t)
 template<>
 inline void Serializer::output_type(std::string& in)
 {
-	char* d = new char[4];
-	memcpy(d, m_iodevice.current(), 4);
-	byte_orser(d, 4);
-	int len = *reinterpret_cast<int*>(&d[0]);
-	m_iodevice.offset(4);
+	int marklen = sizeof(uint16_t);
+	char* d = new char[marklen];
+	memcpy(d, m_iodevice.current(), marklen);
+	byte_orser(d, marklen);
+	int len = *reinterpret_cast<uint16_t*>(&d[0]);
+	m_iodevice.offset(marklen);
 	delete [] d;
+	if (len == 0) return;
 	in.insert(in.begin(), m_iodevice.current(), m_iodevice.current() + len);
 	m_iodevice.offset(len);
 }
@@ -162,12 +164,13 @@ template<>
 inline void Serializer::input_type(std::string in)
 {
 	// 先存入字符串长度
-	int len = in.size();
+	uint16_t len = in.size();
 	char* p = reinterpret_cast< char*>(&len);
-	byte_orser(p, sizeof(int));
-	m_iodevice.input(p, sizeof(int));
+	byte_orser(p, sizeof(uint16_t));
+	m_iodevice.input(p, sizeof(uint16_t));
 
 	// 存入字符串
+	if (len == 0) return;
 	char* d = new char[len];
 	memcpy(d, in.c_str(), len);
 	m_iodevice.input(d, len);

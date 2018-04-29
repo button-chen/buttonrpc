@@ -45,6 +45,14 @@ structdata teststructparam(structdata d, int weigth)
 	return ret;
 }
 
+void funxx() {
+	std::cout << " i am funxx" << std::endl;
+}
+
+void funxx1(int a) {
+	std::cout << " i am funxx1" << std::endl;
+}
+
 int main()
 {
 
@@ -56,6 +64,8 @@ int main()
 	server.bind("foo", foo);
 	server.bind("bar", std::function<std::string(int, std::string)>(bar));
 	server.bind("structtest", teststructparam);
+	server.bind("funxx", funxx);
+	server.bind("funxx1", funxx1);
 
 	server.run();
 
