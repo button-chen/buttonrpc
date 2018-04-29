@@ -44,13 +44,19 @@ public:
 	R call(std::string name);
 
 	template<typename R, typename P1>
-	R call(std::string name, P1 p1);
+	R call(std::string name, P1);
 
 	template<typename R, typename P1, typename P2>
-	R call(std::string name, P1 p1, P2 p2);
+	R call(std::string name, P1, P2);
 
 	template<typename R, typename P1, typename P2, typename P3>
-	R call(std::string name, P1 p1, P2 p2, P3 p3);
+	R call(std::string name, P1, P2, P3);
+
+	template<typename R, typename P1, typename P2, typename P3, typename P4>
+	R call(std::string name, P1, P2, P3, P4);
+
+	template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
+	R call(std::string name, P1, P2, P3, P4, P5);
 
 private:
 	Serializer* call_(std::string name, const char* data, int len);
@@ -85,6 +91,16 @@ private:
 		callproxy_(std::function<R(P1, P2, P3)>(func), pr, data, len);
 	}
 
+	template<typename R, typename P1, typename P2, typename P3, typename P4>
+	void callproxy_(R(*func)(P1, P2, P3, P4), Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R(P1, P2, P3, P4)>(func), pr, data, len);
+	}
+
+	template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
+	void callproxy_(R(*func)(P1, P2, P3, P4, P5), Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R(P1, P2, P3, P4, P5)>(func), pr, data, len);
+	}
+
 	// PROXY CLASS MEMBER
 	template<typename R, typename C, typename S>
 	void callproxy_(R(C::* func)(), S* s, Serializer* pr, const char* data, int len) {
@@ -103,7 +119,20 @@ private:
 
 	template<typename R, typename C, typename S, typename P1, typename P2, typename P3>
 	void callproxy_(R(C::* func)(P1, P2, P3), S* s, Serializer* pr, const char* data, int len) {
-		callproxy_(std::function<R(P1, P2, P3)>(std::bind(func, s, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)), pr, data, len);
+		callproxy_(std::function<R(P1, P2, P3)>(std::bind(func, s, 
+			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)), pr, data, len);
+	}
+
+	template<typename R, typename C, typename S, typename P1, typename P2, typename P3, typename P4>
+	void callproxy_(R(C::* func)(P1, P2, P3, P4), S* s, Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R(P1, P2, P3, P4)>(std::bind(func, s,
+			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)), pr, data, len);
+	}
+
+	template<typename R, typename C, typename S, typename P1, typename P2, typename P3, typename P4, typename P5>
+	void callproxy_(R(C::* func)(P1, P2, P3, P4, P5), S* s, Serializer* pr, const char* data, int len) {
+		callproxy_(std::function<R(P1, P2, P3, P4, P5)>(std::bind(func, s,
+			std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5)), pr, data, len);
 	}
 
 	// PORXY FUNCTIONAL
@@ -119,6 +148,12 @@ private:
 	template<typename R, typename P1, typename P2, typename P3>
 	void callproxy_(std::function<R(P1, P2, P3)>, Serializer* pr, const char* data, int len);
 
+	template<typename R, typename P1, typename P2, typename P3, typename P4>
+	void callproxy_(std::function<R(P1, P2, P3, P4)>, Serializer* pr, const char* data, int len);
+
+	template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
+	void callproxy_(std::function<R(P1, P2, P3, P4, P5)>, Serializer* pr, const char* data, int len);
+
 private:
 	std::map<std::string, std::function<void(Serializer*, const char*, int)>> m_handlers;
 
@@ -130,7 +165,11 @@ private:
 
 buttonrpc::buttonrpc() : m_context(1){ }
 
-buttonrpc::~buttonrpc(){ }
+buttonrpc::~buttonrpc(){ 
+	m_socket->close();
+	delete m_socket;
+	m_context.close();
+}
 
 // network
 void buttonrpc::as_client( std::string ip, int port )
@@ -167,13 +206,11 @@ void buttonrpc::run()
 		zmq::message_t data;
 		recv(data);
 		StreamBuffer iodev((char*)data.data(), data.size());
-		Serializer ds(iodev, Serializer::LittleEndian);
-		uint8 namelen;
-		ds >> namelen;
-		const char* p = ds.current();
+		Serializer ds(iodev);
 
-		std::string funname(p, p+namelen);
-		Serializer* r = call_(funname, p+(int)namelen, ds.size()-namelen);
+		std::string funname;
+		ds >> funname;
+		Serializer* r = call_(funname, ds.current(), ds.size()- funname.size());
 
 		zmq::message_t retmsg (r->size());
 		memcpy (retmsg.data (), r->data(), r->size());
@@ -187,7 +224,7 @@ void buttonrpc::run()
 Serializer* buttonrpc::call_(std::string name, const char* data, int len)
 {
 	auto fun = m_handlers[name];
-	Serializer* ds = new Serializer(StreamBuffer(), Serializer::LittleEndian);
+	Serializer* ds = new Serializer();
 	fun(ds, data, len);
 	ds->reset();
 	return ds;
@@ -220,7 +257,7 @@ inline void buttonrpc::callproxy(F fun, S * s, Serializer * pr, const char * dat
 template<typename R>
 void buttonrpc::callproxy_(std::function<R()> func, Serializer* pr, const char* data, int len)
 {
-	Serializer ds(StreamBuffer(data, len), Serializer::LittleEndian);
+	Serializer ds(StreamBuffer(data, len));
 	R r = func();
 	(*pr) << r;
 }
@@ -228,7 +265,7 @@ void buttonrpc::callproxy_(std::function<R()> func, Serializer* pr, const char* 
 template<typename R, typename P1>
 void buttonrpc::callproxy_(std::function<R(P1)> func, Serializer* pr, const char* data, int len)
 {
-	Serializer ds(StreamBuffer(data, len), Serializer::LittleEndian);
+	Serializer ds(StreamBuffer(data, len));
 	P1 p1;
 	ds >> p1;
 	R r = func(p1);
@@ -238,7 +275,7 @@ void buttonrpc::callproxy_(std::function<R(P1)> func, Serializer* pr, const char
 template<typename R, typename P1, typename P2>
 void buttonrpc::callproxy_(std::function<R(P1, P2)> func, Serializer* pr, const char* data, int len )
 {
-	Serializer ds(StreamBuffer(data, len), Serializer::LittleEndian);
+	Serializer ds(StreamBuffer(data, len));
 	P1 p1; P2 p2;
 	ds >> p1 >> p2;
 	R r = func(p1, p2);
@@ -248,10 +285,30 @@ void buttonrpc::callproxy_(std::function<R(P1, P2)> func, Serializer* pr, const 
 template<typename R, typename P1, typename P2, typename P3>
 void buttonrpc::callproxy_(std::function<R(P1, P2, P3)> func, Serializer* pr, const char* data, int len)
 {
-	Serializer ds(StreamBuffer(data, len), Serializer::LittleEndian);
+	Serializer ds(StreamBuffer(data, len));
 	P1 p1; P2 p2; P3 p3;
 	ds >> p1 >> p2 >> p3;
 	R r = func(p1, p2, p3);
+	(*pr) << r;
+}
+
+template<typename R, typename P1, typename P2, typename P3, typename P4>
+void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4)> func, Serializer* pr, const char* data, int len)
+{
+	Serializer ds(StreamBuffer(data, len));
+	P1 p1; P2 p2; P3 p3; P4 p4;
+	ds >> p1 >> p2 >> p3 >> p4;
+	R r = func(p1, p2, p3, p4);
+	(*pr) << r;
+}
+
+template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
+void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4, P5)> func, Serializer* pr, const char* data, int len)
+{
+	Serializer ds(StreamBuffer(data, len));
+	P1 p1; P2 p2; P3 p3; P4 p4; P5 p5;
+	ds >> p1 >> p2 >> p3 >> p4 >> p5;
+	R r = func(p1, p2, p3, p4, p5);
 	(*pr) << r;
 }
 
@@ -275,45 +332,47 @@ inline R buttonrpc::net_call(Serializer& ds)
 template<typename R>
 R buttonrpc::call(std::string name)
 {
-	Serializer ds(StreamBuffer(), Serializer::LittleEndian);
-	ds << (uint8)name.size();
-	ds.write_raw_data((char*)name.c_str(), name.size());
-
+	Serializer ds;
+	ds << name;
 	return net_call<R>(ds);
 }
 
 template<typename R, typename P1>
 R buttonrpc::call(std::string name, P1 p1)
 {
-	Serializer ds(StreamBuffer(), Serializer::LittleEndian);
-	ds << (uint8)name.size();
-	ds.write_raw_data((char*)name.c_str(), name.size());
-	ds << p1;
-
+	Serializer ds;
+	ds << name << p1;
 	return net_call<R>(ds);
 }
 
 template<typename R, typename P1, typename P2>
 R buttonrpc::call( std::string name, P1 p1, P2 p2 )
 {
-	Serializer ds(StreamBuffer(), Serializer::LittleEndian);
-	ds << (uint8)name.size();
-	ds.write_raw_data((char*)name.c_str(), name.size());
-	ds << p1;
-	ds << p2;
-
+	Serializer ds;
+	ds << name << p1 << p2;
 	return net_call<R>(ds);
 }
 
 template<typename R, typename P1, typename P2, typename P3>
 R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3)
 {
-	Serializer ds(StreamBuffer(), Serializer::LittleEndian);
-	ds << (uint8)name.size();
-	ds.write_raw_data((char*)name.c_str(), name.size());
-	ds << p1;
-	ds << p2;
-	ds << p3;
+	Serializer ds;
+	ds << name << p1 << p2 << p3;
+	return net_call<R>(ds);
+}
 
+template<typename R, typename P1, typename P2, typename P3, typename P4>
+inline R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4)
+{
+	Serializer ds;
+	ds << name << p1 << p2 << p3 << p4;
+	return net_call<R>(ds);
+}
+
+template<typename R, typename P1, typename P2, typename P3, typename P4, typename P5>
+inline R buttonrpc::call(std::string name, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5)
+{
+	Serializer ds;
+	ds << name << p1 << p2 << p3 << p4 << p5;
 	return net_call<R>(ds);
 }

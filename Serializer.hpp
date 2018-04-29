@@ -56,10 +56,10 @@ private:
 class Serializer
 {
 public:
-	Serializer(){ };
+	Serializer() { m_byteorder = LittleEndian; };
 	~Serializer(){ };
 
-	Serializer(StreamBuffer dev, int byteorder){
+	Serializer(StreamBuffer dev, int byteorder=LittleEndian){
 		m_byteorder = byteorder;
 		m_iodevice = dev;
 	}
@@ -185,3 +185,8 @@ inline void Serializer::input_type(std::string in)
 	delete [] d;
 }
 
+template<>
+inline void Serializer::input_type(const char* in)
+{
+	input_type<std::string>(std::string(in));
+}
