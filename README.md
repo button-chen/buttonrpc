@@ -1,11 +1,13 @@
 
 # buttonrpc - a simple rpc framework for C++
 
-## Blueprint
+## Features
 
-- Construct a simple generic network library
-- Support simple remote procedure call (RPC) as call a local procedure
-- Simple and easy to use and manage
+- 轻量级，跨平台，Header only
+- 服务端可以绑定自由函数，类成员函数，std::function对象
+- 服务端可以绑定参数是任意自定义类型的函数
+- 客户端与服务端自动重连机制
+- 客户端调用超时选项
 
 ## Example
 server:
@@ -54,7 +56,8 @@ int main()
 
 
 ## Building
-vs2010 or late 
+- vs2010 或者更高版本 （为了兼容vs2010没有用到可变模板参数）
+- gcc/g++ 支持部分c++11特性即可
 
 ## Usage
 
