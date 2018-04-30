@@ -28,6 +28,11 @@ public:
 		RPC_CLIENT,
 		RPC_SERVER
 	};
+	enum rpc_err_code {
+		RPC_ERR_SUCCESS = 0,
+		RPC_ERR_FUNCTIION_NOT_BIND,
+		RPC_ERR_RECV_TIMEOUT
+	};
 	// return value
 	template<typename T>
 	class value_t {
@@ -71,6 +76,7 @@ public:
 	void as_server(int port);
 	void send(zmq::message_t& data);
 	void recv(zmq::message_t& data);
+	void set_timeout(uint32_t ms);
 	void run();
 
 public:
@@ -202,10 +208,14 @@ private:
 	zmq::context_t m_context;
 	zmq::socket_t* m_socket;
 
+	rpc_err_code m_error_code;
+
 	int m_role;
 };
 
-buttonrpc::buttonrpc() : m_context(1){ }
+buttonrpc::buttonrpc() : m_context(1){ 
+	m_error_code = RPC_ERR_SUCCESS;
+}
 
 buttonrpc::~buttonrpc(){ 
 	m_socket->close();
@@ -242,8 +252,20 @@ void buttonrpc::recv( zmq::message_t& data )
 	m_socket->recv(&data);
 }
 
+inline void buttonrpc::set_timeout(uint32_t ms)
+{
+	// only client can set
+	if (m_role == RPC_CLIENT) {
+		m_socket->setsockopt(ZMQ_RCVTIMEO, ms);
+	}
+}
+
 void buttonrpc::run()
 {
+	// only server can call
+	if (m_role != RPC_SERVER) {
+		return;
+	}
 	while (1){
 		zmq::message_t data;
 		recv(data);
@@ -267,7 +289,7 @@ Serializer* buttonrpc::call_(std::string name, const char* data, int len)
 {
 	Serializer* ds = new Serializer();
 	if (m_handlers.find(name) == m_handlers.end()) {
-		(*ds) << value_t<int>::code_type(1);
+		(*ds) << value_t<int>::code_type(RPC_ERR_FUNCTIION_NOT_BIND);
 		(*ds) << value_t<int>::msg_type("function not bind: " + name);
 		return ds;
 	}
@@ -319,7 +341,7 @@ void buttonrpc::callproxy_(std::function<R()> func, Serializer* pr, const char* 
 	typename type_xx<R>::type r = call_helper<R>(std::bind(func));
 
 	value_t<R> val;
-	val.set_code(0);
+	val.set_code(RPC_ERR_SUCCESS);
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -333,7 +355,7 @@ void buttonrpc::callproxy_(std::function<R(P1)> func, Serializer* pr, const char
 	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1));
 
 	value_t<R> val;
-	val.set_code(0);
+	val.set_code(RPC_ERR_SUCCESS);
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -347,7 +369,7 @@ void buttonrpc::callproxy_(std::function<R(P1, P2)> func, Serializer* pr, const 
 	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2));
 	
 	value_t<R> val;
-	val.set_code(0);
+	val.set_code(RPC_ERR_SUCCESS);
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -360,7 +382,7 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3)> func, Serializer* pr, co
 	ds >> p1 >> p2 >> p3;
 	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2, p3));
 	value_t<R> val;
-	val.set_code(0);
+	val.set_code(RPC_ERR_SUCCESS);
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -373,7 +395,7 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4)> func, Serializer* pr
 	ds >> p1 >> p2 >> p3 >> p4;
 	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2, p3, p4));
 	value_t<R> val;
-	val.set_code(0);
+	val.set_code(RPC_ERR_SUCCESS);
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -386,7 +408,7 @@ void buttonrpc::callproxy_(std::function<R(P1, P2, P3, P4, P5)> func, Serializer
 	ds >> p1 >> p2 >> p3 >> p4 >> p5;
 	typename type_xx<R>::type r = call_helper<R>(std::bind(func, p1, p2, p3, p4, p5));
 	value_t<R> val;
-	val.set_code(0);
+	val.set_code(RPC_ERR_SUCCESS);
 	val.set_val(r);
 	(*pr) << val;
 }
@@ -396,15 +418,24 @@ inline buttonrpc::value_t<R> buttonrpc::net_call(Serializer& ds)
 {
 	zmq::message_t request(ds.size() + 1);
 	memcpy(request.data(), ds.data(), ds.size());
-	send(request);
-
+	if (m_error_code != RPC_ERR_RECV_TIMEOUT) {
+		send(request);
+	}
 	zmq::message_t reply;
 	recv(reply);
+	value_t<R> val;
+	if (reply.size() == 0) {
+		// timeout
+		m_error_code = RPC_ERR_RECV_TIMEOUT;
+		val.set_code(RPC_ERR_RECV_TIMEOUT);
+		val.set_msg("recv timeout");
+		return val;
+	}
+	m_error_code = RPC_ERR_SUCCESS;
 	ds.clear();
 	ds.write_raw_data((char*)reply.data(), reply.size());
 	ds.reset();
 
-	value_t<R> val;
 	ds >> val;
 	return val;
 }
