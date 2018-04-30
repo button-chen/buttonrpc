@@ -1,9 +1,9 @@
 
 # buttonrpc - a simple rpc framework for C++
+- ZeroMQ as the network layer.
 
 ## Features
-
-- 轻量级，跨平台
+- 轻量级，跨平台，简单易用
 - 服务端可以绑定自由函数，类成员函数，std::function对象
 - 服务端可以绑定参数是任意自定义类型的函数
 - 客户端与服务端自动重连机制
@@ -52,7 +52,7 @@ int main()
 ```
 
 ## Dependences
-- [zeromq](http://zguide.zeromq.org/page:all)
+- [ZeroMQ](http://zguide.zeromq.org/page:all)
 
 
 ## Building
