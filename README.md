@@ -1,6 +1,7 @@
 
 # buttonrpc - a simple rpc framework for C++
 - ZeroMQ as the network layer.
+- c++14版本 [https://github.com/button-chen/buttonrpc_cpp14](https://github.com/button-chen/buttonrpc_cpp14)
 
 ## Features
 - 轻量级，跨平台，简单易用
@@ -62,4 +63,6 @@ int main()
 ## Usage
 
 - 1： 更多例子在目录 example/ 下
+- 2： 最多支持5个参数的函数，支持任意多个参数函数请使用c++14版本：  
+[https://github.com/button-chen/buttonrpc_cpp14](https://github.com/button-chen/buttonrpc_cpp14)
 
